@@ -1,0 +1,7 @@
+osm_kyiv_addresses.json
+export.log
+kyiv_apartments.csv
+kyiv_map.html
+.claude/
+__pycache__/
+.DS_Store

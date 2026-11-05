@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kyiv Apartments Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="map_data.js"></script>
+<style>
+  :root { --bg:#fff; --fg:#1d1d1f; --muted:#6e6e73; --line:#d9d9de; --panel:rgba(255,255,255,.96); }
+  @media (prefers-color-scheme: dark) { :root { --bg:#1c1c1e; --fg:#f2f2f7; --muted:#a1a1a6; --line:#3a3a3c; --panel:rgba(28,28,30,.95); } }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:14px/1.4 -apple-system, system-ui, sans-serif; }
+  #map { position:absolute; inset:0; }
+  .panel { position:absolute; z-index:1000; top:12px; left:56px; width:300px; max-width:calc(100vw - 80px);
+           background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; box-shadow:0 2px 12px rgba(0,0,0,.15); }
+  .panel h1 { font-size:15px; margin:0 0 2px; }
+  .panel .sub { color:var(--muted); font-size:12px; margin-bottom:10px; }
+  input[type=search] { width:100%; box-sizing:border-box; padding:7px 9px; border:1px solid var(--line); border-radius:7px; background:var(--bg); color:var(--fg); font-size:14px; }
+  #results { max-height:180px; overflow:auto; margin-top:4px; }
+  #results div { padding:4px 6px; cursor:pointer; border-radius:5px; }
+  #results div:hover { background:rgba(127,127,127,.15); }
+  label { display:block; margin-top:10px; font-size:12px; color:var(--muted); }
+  input[type=range] { width:100%; }
+  .legend { margin-top:10px; display:flex; flex-wrap:wrap; gap:4px 10px; font-size:12px; }
+  .legend span i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:-1px; }
+  .stats { margin-top:8px; font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .leaflet-popup-content { font-size:13px; }
+  .leaflet-popup-content b.n { font-size:20px; }
+  @media (max-width:600px) { .panel { left:12px; right:12px; top:auto; bottom:12px; width:auto; max-width:none; } }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div class="panel">
+  <h1>Квартири в будинках Києва</h1>
+  <div class="sub">Загальна кількість квартир · джерело municipal.kiev.ua, координати © OpenStreetMap</div>
+  <input id="q" type="search" placeholder="Пошук адреси, напр. Панча 11А" autocomplete="off">
+  <div id="results"></div>
+  <label>Мінімум квартир: <b id="minv">0</b></label>
+  <input id="min" type="range" min="0" max="500" step="10" value="0">
+  <label><input id="approx" type="checkbox" checked> показувати приблизні координати</label>
+  <label><input id="nodata" type="checkbox"> показувати будинки без даних</label>
+  <div class="legend" id="legend"></div>
+  <div class="stats" id="stats"></div>
+</div>
+<script>
+const B = (window.BUILDINGS || []).map(([lat,lon,street,house,org,apts,date,m]) => ({lat,lon,street,house,org,apts,date,m}));
+const BINS = [[0,'#9e9e9e','немає даних'],[1,'#4caf50','1–20'],[21,'#cddc39','21–60'],[61,'#ffc107','61–120'],[121,'#ff7043','121–250'],[251,'#d32f2f','250+']];
+const color = a => a == null ? BINS[0][1] : BINS.slice(1).reduce((c,[lo,col]) => a >= lo ? col : c, BINS[1][1]);
+document.getElementById('legend').innerHTML = BINS.map(([,c,l]) => `<span><i style="background:${c}"></i>${l}</span>`).join('');
+
+const map = L.map('map', { preferCanvas:true }).setView([50.45, 30.52], 11);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap contributors' }).addTo(map);
+const layer = L.layerGroup().addTo(map);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const MATCH = { e:'точна адреса', b:'приблизно (основний номер)', s:'дуже приблизно (центр вулиці)' };
+const popup = b => `<div>${esc(b.street)}, ${esc(b.house)}</div>
+  <div><b class="n">${b.apts ?? '—'}</b> квартир</div>
+  <div style="color:#888">${esc(b.org)}${b.date ? ' · паспорт ' + esc(b.date) : ''}<br>${MATCH[b.m]}</div>`;
+
+B.forEach(b => {
+  b.marker = L.circleMarker([b.lat, b.lon], {
+    radius: b.apts ? Math.min(3 + Math.sqrt(b.apts) / 2, 12) : 3,
+    color: '#0004', weight: 1, fillColor: color(b.apts), fillOpacity: b.m === 'e' ? .85 : .45,
+    dashArray: b.m === 'e' ? null : '2 2'
+  }).bindPopup(() => popup(b));
+});
+
+const $ = id => document.getElementById(id);
+function render() {
+  const min = +$('min').value, approx = $('approx').checked, nodata = $('nodata').checked;
+  $('minv').textContent = min;
+  layer.clearLayers();
+  let n = 0, sum = 0;
+  for (const b of B) {
+    if (b.apts == null ? !nodata || min > 0 : b.apts < min) continue;
+    if (!approx && b.m !== 'e') continue;
+    layer.addLayer(b.marker); n++; sum += b.apts || 0;
+  }
+  $('stats').textContent = `${n.toLocaleString('uk')} будинків на мапі · ${sum.toLocaleString('uk')} квартир`;
+}
+['min','approx','nodata'].forEach(id => $(id).addEventListener('input', render));
+render();
+
+const norm = s => s.toLowerCase().replace(/[^0-9a-zа-яіїєґ]+/g, ' ').trim();
+B.forEach(b => b.key = norm(b.street + ' ' + b.house));
+$('q').addEventListener('input', e => {
+  const words = norm(e.target.value).split(' ').filter(Boolean);
+  const hits = words.length ? B.filter(b => words.every(w => b.key.includes(w))).slice(0, 30) : [];
+  $('results').innerHTML = hits.map((b, i) => `<div data-i="${B.indexOf(b)}">${esc(b.street)}, ${esc(b.house)} — <b>${b.apts ?? '—'}</b></div>`).join('');
+});
+$('results').addEventListener('click', e => {
+  const d = e.target.closest('[data-i]'); if (!d) return;
+  const b = B[+d.dataset.i];
+  if (!layer.hasLayer(b.marker)) layer.addLayer(b.marker);
+  map.setView([b.lat, b.lon], 17); b.marker.openPopup();
+});
+</script>
+</body>
+</html>
