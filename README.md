@@ -10,7 +10,7 @@ Interactive map of the total number of apartments («Загальна кільк
 - Coordinates: matched against [OpenStreetMap](https://www.openstreetmap.org/copyright) addresses (© OpenStreetMap contributors, ODbL)
 - **Radius:** pick a centre (button, or «Радіус звідси» in a building card), drag it, set 100 m–1 km; shows buildings, apartments, organisations inside and exports them as CSV.
 - **New builds (ЛУН):** ~1,770 apartment complexes in Kyiv and the region from lun.ua (apartments, class, developer, completion date), coloured by status: built / under construction / frozen. Inside the radius their apartments are shown separately, because built complexes may already be in the municipal data.
-- **Competitors (food stores):** ~3,900 Kyiv food shops from OpenStreetMap (supermarkets, minimarkets, markets, bakeries…). Filter by category, highlight chains (АТБ, Сільпо, Фора…); inside the radius you get store count by chain, apartments per store and distance to the nearest store. CSV export for buildings and stores.
+- **Competitors (food stores):** ~6,100 food shops in Kyiv and nearby towns (Вишневе, Борщагівка, Ірпінь, Бровари, Бориспіль…) from OpenStreetMap (supermarkets, minimarkets, markets, bakeries…). Filter by category, highlight chains (АТБ, Сільпо, Фора…); inside the radius you get store count by chain, apartments per store and distance to the nearest store. CSV export for buildings and stores.
 - **Filters:** apartment count range, approximate locations, buildings without data.
 - Full table: [`kyiv_apartments_geo.csv`](kyiv_apartments_geo.csv). The `match` column is `exact`, `base` (main house number only), `street` (street centre) or empty (not located).
 
@@ -22,7 +22,7 @@ curl -s -A kyiv-apartments-map https://overpass-api.de/api/interpreter \
   --data-urlencode 'data=[out:json][timeout:240];area["name:en"="Kyiv"]["admin_level"="4"]->.a;(nwr["addr:housenumber"]["addr:street"](area.a););out center tags;' \
   -o osm_kyiv_addresses.json
 python3 geocode.py                    # -> kyiv_apartments_geo.csv, map_data.js
-# stores: same Overpass call with
+# stores: Overpass call with [bbox:50.15,30.0,50.68,31.05] instead of the Kyiv area filter, and
 #   (nwr["shop"~"^(supermarket|convenience|grocery|greengrocer|butcher|bakery|deli|dairy|seafood|frozen_food|food|alcohol|beverages|general|department_store|wholesale)$"](area.a);nwr["amenity"="marketplace"](area.a);)
 #   saved as osm_kyiv_food.json, then:
 python3 stores.py                     # -> stores_data.js
