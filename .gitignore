@@ -9,3 +9,7 @@ osm_kyiv_food.json
 lun/
 lun_export.log
 lun_complexes.csv
+lun_complexes_new.csv
+lun_complexes_old.csv
+lun_refresh.log
+.env

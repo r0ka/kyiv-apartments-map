@@ -88,11 +88,10 @@ def main():
     out = []
     for score, nearest, x, y, apts, n_in, nb, near_b in picked:
         lat, lon = y / KY, x / KX
-        lb = [c for _, c in gl.near(x, y) if c[6] == "built"]
-        lu = [c for _, c in gl.near(x, y) if c[6] == "building"]
+        lun_near = [c for _, c in gl.near(x, y)]
         d0, b0 = min(near_b, key=lambda t: t[0])
         out.append([round(lat, 6), round(lon, 6), round(score), apts, n_in, round(nearest), nb,
-                    sum(c[4] or 0 for c in lb), sum(c[4] or 0 for c in lu), f"{b0[2]}, {b0[3]}"])
+                    sum(c[11] for c in lun_near), sum(c[12] for c in lun_near), f"{b0[2]}, {b0[3]}"])
     with open("spots_data.js", "w", encoding="utf-8") as f:
         f.write("window.SPOTS=" + json.dumps(out, ensure_ascii=False, separators=(",", ":")) + ";\n")
     print(f"{len(cands)} candidate points scored; top {len(out)}:")

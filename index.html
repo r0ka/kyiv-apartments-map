@@ -117,8 +117,8 @@
 </div>
 <script>
 const B = (window.BUILDINGS || []).map(([lat,lon,street,house,org,apts,date,m], i) => ({i,lat,lon,street,house,org,apts,date,m}));
-const LUN = (window.LUN || []).map(([lat,lon,name,addr,apts,cls,st,date,dev,url,houses], i) => ({i,lat,lon,name,addr,apts,cls,st,date,dev,url,houses}));
-const LUN_ST = { built:['#00897b','здано'], building:['#fb8c00','будується'], frozen:['#757575','заморожено'], other:['#9575cd','інше'] };
+const LUN = (window.LUN || []).map(([lat,lon,name,addr,apts,cls,st,date,dev,url,houses,aB,aU,aS,hB,hU,hS], i) => ({i,lat,lon,name,addr,apts,cls,st,date,dev,url,houses,aB,aU,aS,hB,hU,hS}));
+const LUN_ST = { built:['#00897b','здано'], partial:['#7cb342','частково здано'], building:['#fb8c00','будується'], frozen:['#757575','заморожено / зупинено'] };
 const SPOTS = (window.SPOTS || []).map(([lat,lon,score,apts,stores,nearest,nb,lunBuilt,lunBuilding,near], i) => ({rank:i+1,lat,lon,score,apts,stores,nearest,nb,lunBuilt,lunBuilding,near}));
 const S = (window.STORES || []).map(([lat,lon,name,brand,cat], i) => ({i,lat,lon,name,brand,cat}));
 const $ = id => document.getElementById(id);
@@ -143,7 +143,7 @@ const HL_COLORS = ['#d81b60','#1e88e5','#f4511e','#00897b','#8e24aa','#6d4c41','
 const CATS = [...S.reduce((m, s) => m.set(s.cat, (m.get(s.cat) || 0) + 1), new Map())].sort((a, b) => b[1] - a[1]);
 const DEFAULT_CATS = ['Супермаркет','Продукти / мінімаркет','Гіпермаркет / універмаг','Ринок'];
 let catsOn = new Set(store.get('kam-cats', DEFAULT_CATS));
-let lunOn = new Set(store.get('kam-lun', ['built','building','frozen','other']));
+let lunOn = new Set(store.get('kam-lun2', Object.keys(LUN_ST)));
 let hl = store.get('kam-brands', []);
 const BRANDS = [...S.reduce((m, s) => s.brand ? m.set(s.brand, (m.get(s.brand) || 0) + 1) : m, new Map())].sort((a, b) => b[1] - a[1]);
 hl = hl.filter(b => BRANDS.some(([x]) => x === b));
@@ -152,7 +152,7 @@ $('cats').innerHTML = CATS.map(([c, n]) => `<label><input type="checkbox" data-c
 $('lunStatus').innerHTML = Object.entries(LUN_ST).map(([k, [c, l]]) => { const n = LUN.filter(x => x.st === k).length;
   return n ? `<label><input type="checkbox" data-st="${k}" ${lunOn.has(k) ? 'checked' : ''}>${l} <span class="num">${fmt(n)}</span></label>` : ''; }).join('');
 $('lunStatus').addEventListener('change', e => { const k = e.target.dataset.st; if (!k) return;
-  e.target.checked ? lunOn.add(k) : lunOn.delete(k); store.set('kam-lun', [...lunOn]); render(); });
+  e.target.checked ? lunOn.add(k) : lunOn.delete(k); store.set('kam-lun2', [...lunOn]); render(); });
 $('cats').addEventListener('change', e => {
   const c = e.target.dataset.cat; if (!c) return;
   e.target.checked ? catsOn.add(c) : catsOn.delete(c); store.set('kam-cats', [...catsOn]); render();
@@ -193,6 +193,10 @@ B.forEach(b => {
 const lPopup = c => `<div><b>${esc(c.name)}</b> <span style="color:${LUN_ST[c.st][0]}">● ${LUN_ST[c.st][1]}</span></div>
   <div style="color:#888">${esc(c.addr)}</div>
   <div><b class="n">${c.apts == null ? '—' : fmt(c.apts)}</b> квартир${c.houses ? ` · ${esc(c.houses)} буд.` : ''}</div>
+  ${c.st === 'partial' || (c.hS && c.st !== 'frozen') || (c.hU && c.hB) ? `<div>${[
+      c.hB && `збудовано ${c.hB} буд.${c.apts ? ` (${fmt(c.aB)} кв.)` : ''}`,
+      c.hU && `будується ${c.hU}${c.apts ? ` (${fmt(c.aU)} кв.)` : ''}`,
+      c.hS && `зупинено ${c.hS}${c.apts ? ` (${fmt(c.aS)} кв.)` : ''}`].filter(Boolean).join(' · ')}</div>` : ''}
   <div style="color:#888">${[c.cls, c.date && 'здача ' + c.date, c.dev].filter(Boolean).map(esc).join(' · ')}</div>
   <div class="row"><button data-act="radius" data-ll="${c.lat},${c.lon}">◎ Радіус звідси</button>
   <a href="https://lun.ua${esc(c.url)}" target="_blank" rel="noopener">на ЛУН ↗</a></div>`;
@@ -270,10 +274,10 @@ function radiusStats(inB, inS, inL) {
       <div><b>${inS.length ? fmt(Math.round(apts / inS.length)) : '—'}</b><span>квартир на 1 магазин</span></div>
       <div><b>${nearest == null ? '—' : fmt(Math.round(nearest)) + ' м'}</b><span>до найближчого магазину</span></div>
       <div><b>${withData.length ? fmt(Math.round(apts / withData.length)) : '—'}</b><span>квартир на будинок</span></div>
-      ${LUN.length ? (() => { const sumSt = k => inL.filter(c => c.st === k).reduce((s, c) => s + (c.apts || 0), 0);
-        const nb = inL.filter(c => c.st === 'built').length, nu = inL.filter(c => c.st !== 'built').length;
-        return `<div style="border-color:${LUN_ST.built[0]}"><b>${fmt(sumSt('built'))}</b><span>квартир у зданих ЖК (${fmt(nb)})</span></div>
-        <div style="border-color:${LUN_ST.building[0]}"><b>${fmt(inL.filter(c => c.st !== 'built').reduce((s, c) => s + (c.apts || 0), 0))}</b><span>квартир у ЖК, що будуються (${fmt(nu)})</span></div>`; })() : ''}
+      ${LUN.length ? (() => { const sum = k => inL.reduce((s, c) => s + (c[k] || 0), 0);
+        const nb = inL.filter(c => c.hB).length, nu = inL.filter(c => c.hU).length;
+        return `<div style="border-color:${LUN_ST.built[0]}"><b>${fmt(sum('aB'))}</b><span>квартир у збудованих будинках ЖК (${fmt(nb)} ЖК)</span></div>
+        <div style="border-color:${LUN_ST.building[0]}"><b>${fmt(sum('aU'))}</b><span>квартир у будинках, що будуються (${fmt(nu)} ЖК)</span></div>`; })() : ''}
     </div>
     ${inL.length ? `<h3>Новобудови в радіусі</h3><div class="list">${[...inL].sort((a, b) => (b.apts || 0) - (a.apts || 0)).map(c =>
       `<div data-lun="${c.i}" style="cursor:pointer"><span><i class="dot" style="background:${LUN_ST[c.st][0]}"></i>${esc(c.name)}</span><span class="num">${c.apts == null ? '—' : fmt(c.apts)}</span></div>`).join('')}</div>` : ''}
@@ -282,8 +286,8 @@ function radiusStats(inB, inS, inL) {
       <span>${hl.includes(b) ? `<i class="sq" style="background:${hlColor(b)}"></i>` : ''}${esc(b)}</span><span class="num">${fmt(n)}</span></div>`).join('')}</div>` : ''}
     <div class="row"><button id="csvB">⬇ CSV будинків</button><button id="csvS">⬇ CSV магазинів</button>${inL.length ? '<button id="csvL">⬇ CSV ЖК</button>' : ''}</div>`;
   $('rstats').querySelectorAll('[data-lun]').forEach(d => d.onclick = () => { const c = LUN[+d.dataset.lun]; map.setView([c.lat, c.lon], Math.max(map.getZoom(), 16)); c.marker.openPopup(); });
-  if ($('csvL')) $('csvL').onclick = () => downloadCsv(`zhk_${$('r').value}m.csv`, [['ЖК','адреса','квартир','статус','клас','здача','забудовник','відстань_м','lat','lon','lun']]
-      .concat([...inL].sort((a, b) => a.d - b.d).map(c => [c.name, c.addr, c.apts ?? '', LUN_ST[c.st][1], c.cls, c.date, c.dev, Math.round(c.d), c.lat, c.lon, 'https://lun.ua' + c.url])));
+  if ($('csvL')) $('csvL').onclick = () => downloadCsv(`zhk_${$('r').value}m.csv`, [['ЖК','адреса','квартир','статус','кв. збудовано','кв. будується','кв. зупинено','клас','здача','забудовник','відстань_м','lat','lon','lun']]
+      .concat([...inL].sort((a, b) => a.d - b.d).map(c => [c.name, c.addr, c.apts ?? '', LUN_ST[c.st][1], c.aB, c.aU, c.aS, c.cls, c.date, c.dev, Math.round(c.d), c.lat, c.lon, 'https://lun.ua' + c.url])));
   $('rbrands')?.addEventListener('click', e => { const d = e.target.closest('[data-brand]'); if (d) toggleBrand(d.dataset.brand, !hl.includes(d.dataset.brand)); });
   const R = $('r').value;
   $('csvB').onclick = () => downloadCsv(`budynky_${R}m.csv`, [['вулиця','будинок','організація','квартир','відстань_м','lat','lon']]
