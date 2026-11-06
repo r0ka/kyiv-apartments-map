@@ -6,6 +6,9 @@ Interactive map of the total number of apartments («Загальна кільк
 
 - Source: building passports on [municipal.kiev.ua](https://municipal.kiev.ua/kiev/) (exported 2026-11-05)
 - Coordinates: matched against [OpenStreetMap](https://www.openstreetmap.org/copyright) addresses (© OpenStreetMap contributors, ODbL)
+- **Radius:** pick a centre (button, or «Радіус звідси» in a building card), drag it, set 100 m–5 km; shows buildings, apartments, organisations inside and exports them as CSV.
+- **My company / competitors:** search management organisations, mark one as yours and any number as competitors; they are highlighted and their share inside the radius is shown. Saved in your browser only.
+- **Filters:** apartment count range, approximate locations, buildings without data.
 - Full table: [`kyiv_apartments_geo.csv`](kyiv_apartments_geo.csv). The `match` column is `exact`, `base` (main house number only), `street` (street centre) or empty (not located).
 
 ## Refreshing the data

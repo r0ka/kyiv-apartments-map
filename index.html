@@ -8,26 +8,45 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="map_data.js"></script>
 <style>
-  :root { --bg:#fff; --fg:#1d1d1f; --muted:#6e6e73; --line:#d9d9de; --panel:rgba(255,255,255,.96); }
-  @media (prefers-color-scheme: dark) { :root { --bg:#1c1c1e; --fg:#f2f2f7; --muted:#a1a1a6; --line:#3a3a3c; --panel:rgba(28,28,30,.95); } }
+  :root { --bg:#fff; --fg:#1d1d1f; --muted:#6e6e73; --line:#d9d9de; --panel:rgba(255,255,255,.97); --accent:#1a73e8; --hover:rgba(127,127,127,.14);
+          --mine:#1a73e8; --comp:#d81b60; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#1c1c1e; --fg:#f2f2f7; --muted:#a1a1a6; --line:#3a3a3c; --panel:rgba(28,28,30,.96); --accent:#5b9dff; } }
   html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:14px/1.4 -apple-system, system-ui, sans-serif; }
   #map { position:absolute; inset:0; }
-  .panel { position:absolute; z-index:1000; top:12px; left:56px; width:300px; max-width:calc(100vw - 80px);
-           background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; box-shadow:0 2px 12px rgba(0,0,0,.15); }
+  .panel { position:absolute; z-index:1000; top:12px; left:56px; width:330px; max-width:calc(100vw - 80px); max-height:calc(100vh - 24px); overflow:auto;
+           background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; box-shadow:0 2px 12px rgba(0,0,0,.15); box-sizing:border-box; }
   .panel h1 { font-size:15px; margin:0 0 2px; }
-  .panel .sub { color:var(--muted); font-size:12px; margin-bottom:10px; }
-  input[type=search] { width:100%; box-sizing:border-box; padding:7px 9px; border:1px solid var(--line); border-radius:7px; background:var(--bg); color:var(--fg); font-size:14px; }
-  #results { max-height:180px; overflow:auto; margin-top:4px; }
-  #results div { padding:4px 6px; cursor:pointer; border-radius:5px; }
-  #results div:hover { background:rgba(127,127,127,.15); }
-  label { display:block; margin-top:10px; font-size:12px; color:var(--muted); }
+  .sub { color:var(--muted); font-size:12px; }
+  details { border-top:1px solid var(--line); margin-top:10px; padding-top:8px; }
+  summary { cursor:pointer; font-weight:600; list-style:none; display:flex; justify-content:space-between; }
+  summary::after { content:'▾'; color:var(--muted); } details:not([open]) summary::after { content:'▸'; }
+  input[type=search] { width:100%; box-sizing:border-box; padding:7px 9px; border:1px solid var(--line); border-radius:7px; background:var(--bg); color:var(--fg); font-size:14px; margin-top:6px; }
+  .list { max-height:170px; overflow:auto; margin-top:4px; }
+  .list > div { padding:4px 6px; cursor:pointer; border-radius:5px; display:flex; gap:6px; justify-content:space-between; }
+  .list > div:hover { background:var(--hover); }
+  .num { font-variant-numeric:tabular-nums; white-space:nowrap; }
+  label { display:block; margin-top:8px; font-size:12px; color:var(--muted); }
   input[type=range] { width:100%; }
-  .legend { margin-top:10px; display:flex; flex-wrap:wrap; gap:4px 10px; font-size:12px; }
-  .legend span i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:-1px; }
+  .legend { margin-top:8px; display:flex; flex-wrap:wrap; gap:4px 10px; font-size:12px; }
+  i.dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:-1px; flex:none; }
   .stats { margin-top:8px; font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  button { font:inherit; font-size:13px; padding:5px 10px; border-radius:7px; border:1px solid var(--line); background:var(--bg); color:var(--fg); cursor:pointer; }
+  button.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .row { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; align-items:center; }
+  .kpi { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px; }
+  .kpi div { border:1px solid var(--line); border-radius:7px; padding:6px 8px; }
+  .kpi b { display:block; font-size:18px; font-variant-numeric:tabular-nums; }
+  .kpi span { font-size:11px; color:var(--muted); }
+  .chip { display:inline-flex; align-items:center; gap:4px; font-size:12px; border-radius:12px; padding:2px 4px 2px 8px; margin:3px 3px 0 0; color:#fff; max-width:100%; }
+  .chip span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .chip button { padding:0 5px; border:0; background:transparent; color:#fff; font-size:13px; }
+  .tag { font-size:11px; padding:0 5px; border-radius:4px; color:#fff; }
+  .hint { font-size:12px; color:var(--muted); margin-top:4px; }
   .leaflet-popup-content { font-size:13px; }
   .leaflet-popup-content b.n { font-size:20px; }
-  @media (max-width:600px) { .panel { left:12px; right:12px; top:auto; bottom:12px; width:auto; max-width:none; } }
+  .leaflet-popup-content .row button { font-size:12px; padding:3px 7px; }
+  .picking #map { cursor:crosshair; }
+  @media (max-width:600px) { .panel { left:8px; right:8px; top:auto; bottom:8px; width:auto; max-width:none; max-height:55vh; } }
 </style>
 </head>
 <body>
@@ -36,59 +55,226 @@
   <h1>Квартири в будинках Києва</h1>
   <div class="sub">Загальна кількість квартир · джерело municipal.kiev.ua, координати © OpenStreetMap</div>
   <input id="q" type="search" placeholder="Пошук адреси, напр. Панча 11А" autocomplete="off">
-  <div id="results"></div>
-  <label>Мінімум квартир: <b id="minv">0</b></label>
-  <input id="min" type="range" min="0" max="500" step="10" value="0">
-  <label><input id="approx" type="checkbox" checked> показувати приблизні координати</label>
-  <label><input id="nodata" type="checkbox"> показувати будинки без даних</label>
-  <div class="legend" id="legend"></div>
+  <div id="results" class="list"></div>
+
+  <details id="secRadius" open>
+    <summary>Радіус</summary>
+    <div class="row">
+      <button id="pick">📍 Обрати центр на мапі</button>
+      <button id="clearR">Скинути</button>
+    </div>
+    <div class="hint" id="rhint">Натисніть кнопку і клацніть на мапі, або «Радіус звідси» у картці будинку. Центр можна перетягувати.</div>
+    <label>Радіус: <b id="rv">500</b> м</label>
+    <input id="r" type="range" min="100" max="5000" step="50" value="500">
+    <div id="rstats"></div>
+  </details>
+
+  <details id="secOrg" open>
+    <summary>Моя компанія та конкуренти</summary>
+    <input id="oq" type="search" placeholder="Пошук організації (ЖЕД, ОСББ, ТОВ…)" autocomplete="off">
+    <div id="oresults" class="list"></div>
+    <div id="chips"></div>
+    <label><input id="dim" type="checkbox" checked> приглушити інші будинки</label>
+  </details>
+
+  <details id="secFilter" open>
+    <summary>Фільтри</summary>
+    <label>Квартир від <b id="minv">0</b> до <b id="maxv">будь-яка</b></label>
+    <input id="min" type="range" min="0" max="500" step="10" value="0">
+    <input id="max" type="range" min="10" max="1000" step="10" value="1000">
+    <label><input id="approx" type="checkbox" checked> показувати приблизні координати</label>
+    <label><input id="nodata" type="checkbox"> показувати будинки без даних</label>
+    <div class="legend" id="legend"></div>
+  </details>
   <div class="stats" id="stats"></div>
 </div>
 <script>
-const B = (window.BUILDINGS || []).map(([lat,lon,street,house,org,apts,date,m]) => ({lat,lon,street,house,org,apts,date,m}));
-const BINS = [[0,'#9e9e9e','немає даних'],[1,'#4caf50','1–20'],[21,'#cddc39','21–60'],[61,'#ffc107','61–120'],[121,'#ff7043','121–250'],[251,'#d32f2f','250+']];
-const color = a => a == null ? BINS[0][1] : BINS.slice(1).reduce((c,[lo,col]) => a >= lo ? col : c, BINS[1][1]);
-document.getElementById('legend').innerHTML = BINS.map(([,c,l]) => `<span><i style="background:${c}"></i>${l}</span>`).join('');
+const B = (window.BUILDINGS || []).map(([lat,lon,street,house,org,apts,date,m], i) => ({i,lat,lon,street,house,org,apts,date,m}));
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => n.toLocaleString('uk');
+const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+                set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
 
+// ---------- colours ----------
+const BINS = [[0,'#9e9e9e','немає даних'],[1,'#4caf50','1–20'],[21,'#cddc39','21–60'],[61,'#ffc107','61–120'],[121,'#ff7043','121–250'],[251,'#d32f2f','250+']];
+const binColor = a => a == null ? BINS[0][1] : BINS.slice(1).reduce((c,[lo,col]) => a >= lo ? col : c, BINS[1][1]);
+$('legend').innerHTML = BINS.map(([,c,l]) => `<span><i class="dot" style="background:${c}"></i>${l}</span>`).join('');
+const COMP_COLORS = ['#d81b60','#8e24aa','#f4511e','#00897b','#6d4c41','#c0ca33','#3949ab','#e53935','#00acc1','#7cb342'];
+
+// ---------- organisation roles: one "mine", many competitors ----------
+let roles = store.get('kam-roles', { mine: null, comp: [] });
+const orgColor = o => o === roles.mine ? 'var(--mine)' : COMP_COLORS[roles.comp.indexOf(o) % COMP_COLORS.length];
+const orgHex = o => o === roles.mine ? '#1a73e8' : COMP_COLORS[roles.comp.indexOf(o) % COMP_COLORS.length];
+const roleOf = o => o === roles.mine ? 'mine' : roles.comp.includes(o) ? 'comp' : null;
+function setRole(org, role) {
+  if (roles.mine === org) roles.mine = null;
+  roles.comp = roles.comp.filter(x => x !== org);
+  if (role === 'mine') roles.mine = org;
+  if (role === 'comp') roles.comp.push(org);
+  store.set('kam-roles', roles);
+  renderChips(); render();
+}
+const ORGS = (() => { const m = new Map();
+  for (const b of B) { const o = m.get(b.org) || { name:b.org, n:0, a:0 }; o.n++; o.a += b.apts || 0; m.set(b.org, o); }
+  return [...m.values()].sort((x, y) => y.n - x.n); })();
+roles.comp = roles.comp.filter(o => ORGS.some(x => x.name === o));
+if (roles.mine && !ORGS.some(x => x.name === roles.mine)) roles.mine = null;
+
+// ---------- map ----------
 const map = L.map('map', { preferCanvas:true }).setView([50.45, 30.52], 11);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap contributors' }).addTo(map);
 const layer = L.layerGroup().addTo(map);
-const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const MATCH = { e:'точна адреса', b:'приблизно (основний номер)', s:'дуже приблизно (центр вулиці)' };
-const popup = b => `<div>${esc(b.street)}, ${esc(b.house)}</div>
+const popup = b => {
+  const r = roleOf(b.org);
+  return `<div>${esc(b.street)}, ${esc(b.house)}</div>
   <div><b class="n">${b.apts ?? '—'}</b> квартир</div>
-  <div style="color:#888">${esc(b.org)}${b.date ? ' · паспорт ' + esc(b.date) : ''}<br>${MATCH[b.m]}</div>`;
-
+  <div style="color:#888">${esc(b.org)}${r ? ` <span class="tag" style="background:${orgHex(b.org)}">${r === 'mine' ? 'моя' : 'конкурент'}</span>` : ''}
+  ${b.date ? '<br>паспорт ' + esc(b.date) : ''}<br>${MATCH[b.m]}</div>
+  <div class="row">
+    <button data-act="radius" data-i="${b.i}">◎ Радіус звідси</button>
+    <button data-act="mine" data-i="${b.i}">Моя</button>
+    <button data-act="comp" data-i="${b.i}">Конкурент</button>
+    ${r ? `<button data-act="none" data-i="${b.i}">✕</button>` : ''}
+  </div>`;
+};
 B.forEach(b => {
-  b.marker = L.circleMarker([b.lat, b.lon], {
-    radius: b.apts ? Math.min(3 + Math.sqrt(b.apts) / 2, 12) : 3,
-    color: '#0004', weight: 1, fillColor: color(b.apts), fillOpacity: b.m === 'e' ? .85 : .45,
-    dashArray: b.m === 'e' ? null : '2 2'
-  }).bindPopup(() => popup(b));
+  b.marker = L.circleMarker([b.lat, b.lon], { radius:3 }).bindPopup(() => popup(b));
+  b.key = (b.street + ' ' + b.house).toLowerCase().replace(/[^0-9a-zа-яіїєґ']+/g, ' ');
 });
+map.on('popupopen', e => e.popup.getElement().querySelectorAll('button[data-act]').forEach(btn => btn.onclick = () => {
+  const b = B[+btn.dataset.i];
+  if (btn.dataset.act === 'radius') { map.closePopup(); map.stop(); setTimeout(() => setCenter([b.lat, b.lon]), 50); }
+  else { setRole(b.org, btn.dataset.act); e.popup.setContent(popup(b)); }
+}));
 
-const $ = id => document.getElementById(id);
+function style(b, inRadius) {
+  const r = roleOf(b.org), dimOthers = $('dim').checked && (roles.mine || roles.comp.length);
+  const base = b.apts ? Math.min(3 + Math.sqrt(b.apts) / 2, 12) : 3;
+  if (r) return { radius: base + 1.5, color: '#fff', weight: 2, fillColor: orgHex(b.org), fillOpacity: .95, dashArray: null };
+  const faded = dimOthers || (center && !inRadius);
+  return { radius: base, color: '#0004', weight: 1, fillColor: binColor(b.apts),
+           fillOpacity: faded ? .18 : (b.m === 'e' ? .85 : .45), dashArray: b.m === 'e' ? null : '2 2' };
+}
+
+// keep fitted areas clear of the side panel (desktop) or bottom sheet (mobile)
+const panelPad = () => { const p = document.querySelector('.panel').getBoundingClientRect();
+  return innerWidth > 600 ? { paddingTopLeft:[p.right + 20, 20], paddingBottomRight:[20, 20] }
+                          : { paddingTopLeft:[20, 20], paddingBottomRight:[20, innerHeight - p.top + 20] }; };
+
+// ---------- radius ----------
+let center = null, circle = null, centerMarker = null, picking = false;
+const dist = (a, b) => map.distance(a, b);
+function setCenter(ll) {
+  center = L.latLng(ll);
+  if (!circle) {
+    circle = L.circle(center, { radius:+$('r').value, color:'#1a73e8', weight:2, fillOpacity:.06, interactive:false }).addTo(map);
+    centerMarker = L.marker(center, { draggable:true, title:'Перетягніть центр' }).addTo(map);
+    centerMarker.on('drag', e => { center = e.latlng; circle.setLatLng(center); render(); });
+  } else { circle.setLatLng(center); centerMarker.setLatLng(center); }
+  circle.setRadius(+$('r').value);
+  const fit = () => map.fitBounds(circle.getBounds(), panelPad());
+  map._animatingZoom ? map.once('zoomend', () => setTimeout(fit, 0)) : fit();   // don't fight a running zoom
+  stopPicking(); render();
+}
+function clearCenter() {
+  center = null; if (circle) { circle.remove(); centerMarker.remove(); circle = centerMarker = null; }
+  render();
+}
+function stopPicking() { picking = false; $('pick').classList.remove('on'); document.body.classList.remove('picking'); }
+$('pick').onclick = () => { picking = !picking; $('pick').classList.toggle('on', picking); document.body.classList.toggle('picking', picking); };
+$('clearR').onclick = clearCenter;
+map.on('click', e => { if (picking) setCenter(e.latlng); });
+$('r').addEventListener('input', () => { $('rv').textContent = fmt(+$('r').value); if (circle) circle.setRadius(+$('r').value); render(); });
+
+function radiusStats(inside) {
+  if (!center) { $('rstats').innerHTML = ''; return; }
+  const withData = inside.filter(b => b.apts != null);
+  const apts = withData.reduce((s, b) => s + b.apts, 0);
+  const byOrg = new Map();
+  for (const b of inside) { const o = byOrg.get(b.org) || { name:b.org, n:0, a:0 }; o.n++; o.a += b.apts || 0; byOrg.set(b.org, o); }
+  const orgs = [...byOrg.values()].sort((x, y) => y.a - x.a || y.n - x.n);
+  const sum = role => inside.filter(b => roleOf(b.org) === role).reduce((s, b) => ({ n:s.n + 1, a:s.a + (b.apts || 0) }), { n:0, a:0 });
+  const mine = sum('mine'), comp = sum('comp');
+  const share = (x) => apts ? ` · ${Math.round(x.a / apts * 100)}%` : '';
+  $('rstats').innerHTML = `
+    <div class="kpi">
+      <div><b>${fmt(inside.length)}</b><span>будинків (з даними ${fmt(withData.length)})</span></div>
+      <div><b>${fmt(apts)}</b><span>квартир</span></div>
+      ${roles.mine ? `<div style="border-color:#1a73e8"><b>${fmt(mine.a)}</b><span>моя: ${fmt(mine.n)} буд.${share(mine)}</span></div>` : ''}
+      ${roles.comp.length ? `<div style="border-color:#d81b60"><b>${fmt(comp.a)}</b><span>конкуренти: ${fmt(comp.n)} буд.${share(comp)}</span></div>` : ''}
+      <div><b>${fmt(orgs.length)}</b><span>організацій</span></div>
+      <div><b>${withData.length ? fmt(Math.round(apts / withData.length)) : '—'}</b><span>квартир на будинок</span></div>
+    </div>
+    <label>Організації в радіусі (клацніть, щоб позначити конкурентом)</label>
+    <div class="list" id="rorgs">${orgs.map(o => `<div data-org="${esc(o.name)}">
+      <span>${roleOf(o.name) ? `<i class="dot" style="background:${orgHex(o.name)}"></i>` : ''}${esc(o.name)}</span>
+      <span class="num">${fmt(o.n)} · ${fmt(o.a)} кв.</span></div>`).join('')}</div>
+    <div class="row"><button id="csv">⬇ CSV будинків у радіусі</button></div>`;
+  $('rorgs').onclick = e => { const d = e.target.closest('[data-org]'); if (d && !roleOf(d.dataset.org)) setRole(d.dataset.org, 'comp'); };
+  $('csv').onclick = () => {
+    const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const rows = [['вулиця','будинок','організація','квартир','роль','відстань_м','lat','lon']]
+      .concat(inside.map(b => [b.street, b.house, b.org, b.apts ?? '', roleOf(b.org) === 'mine' ? 'моя' : roleOf(b.org) ? 'конкурент' : '',
+                               Math.round(dist(center, [b.lat, b.lon])), b.lat, b.lon]));
+    const blob = new Blob(['﻿' + rows.map(r => r.map(q).join(',')).join('\n')], { type:'text/csv' });
+    const a = Object.assign(document.createElement('a'), { href:URL.createObjectURL(blob), download:`radius_${$('r').value}m.csv` });
+    a.click(); URL.revokeObjectURL(a.href);
+  };
+}
+
+// ---------- main render ----------
 function render() {
-  const min = +$('min').value, approx = $('approx').checked, nodata = $('nodata').checked;
-  $('minv').textContent = min;
+  const min = +$('min').value, max = +$('max').value, approx = $('approx').checked, nodata = $('nodata').checked;
+  $('minv').textContent = min; $('maxv').textContent = max >= 1000 ? 'будь-яка' : max;
+  const R = +$('r').value;
   layer.clearLayers();
-  let n = 0, sum = 0;
+  let n = 0, sum = 0; const inside = [];
   for (const b of B) {
-    if (b.apts == null ? !nodata || min > 0 : b.apts < min) continue;
-    if (!approx && b.m !== 'e') continue;
+    const role = roleOf(b.org);
+    const passes = (b.apts == null ? nodata && min === 0 : b.apts >= min && (max >= 1000 || b.apts <= max)) && (approx || b.m === 'e');
+    if (!passes && !role) continue;
+    const inR = center ? dist(center, [b.lat, b.lon]) <= R : false;
+    if (inR && passes) inside.push(b);
+    b.marker.setStyle(style(b, inR)); b.marker.setRadius(style(b, inR).radius);
     layer.addLayer(b.marker); n++; sum += b.apts || 0;
   }
-  $('stats').textContent = `${n.toLocaleString('uk')} будинків на мапі · ${sum.toLocaleString('uk')} квартир`;
+  B.forEach(b => roleOf(b.org) && layer.hasLayer(b.marker) && b.marker.bringToFront());
+  $('stats').textContent = `${fmt(n)} будинків на мапі · ${fmt(sum)} квартир`;
+  radiusStats(inside);
 }
-['min','approx','nodata'].forEach(id => $(id).addEventListener('input', render));
-render();
+['min','max','approx','nodata','dim'].forEach(id => $(id).addEventListener('input', render));
 
-const norm = s => s.toLowerCase().replace(/[^0-9a-zа-яіїєґ]+/g, ' ').trim();
-B.forEach(b => b.key = norm(b.street + ' ' + b.house));
+// ---------- organisation picker ----------
+function renderChips() {
+  const chip = (o, role) => `<span class="chip" style="background:${orgHex(o)}" title="${esc(o)}">
+    <span>${role === 'mine' ? 'Моя: ' : ''}${esc(o)}</span><button data-org="${esc(o)}" title="Прибрати">✕</button></span>`;
+  $('chips').innerHTML = (roles.mine ? chip(roles.mine, 'mine') : '') + roles.comp.map(o => chip(o, 'comp')).join('');
+}
+$('chips').onclick = e => { const b = e.target.closest('button[data-org]'); if (b) setRole(b.dataset.org, null); };
+$('oq').addEventListener('input', e => {
+  const w = e.target.value.toLowerCase().trim();
+  const hits = w ? ORGS.filter(o => o.name.toLowerCase().includes(w)).slice(0, 40) : [];
+  $('oresults').innerHTML = hits.map(o => `<div data-org="${esc(o.name)}"><span>${esc(o.name)}</span>
+    <span class="num">${fmt(o.n)} буд. <button data-role="mine">Моя</button> <button data-role="comp">Конк.</button></span></div>`).join('');
+});
+$('oresults').onclick = e => {
+  const row = e.target.closest('[data-org]'); if (!row) return;
+  const role = e.target.closest('button')?.dataset.role || 'comp';
+  setRole(row.dataset.org, role);
+  if (role === 'mine' || roles.comp.length === 1) {
+    const pts = B.filter(b => b.org === row.dataset.org).map(b => [b.lat, b.lon]);
+    if (pts.length && !center) map.fitBounds(pts, { ...panelPad(), maxZoom:16 });
+  }
+};
+
+// ---------- address search ----------
 $('q').addEventListener('input', e => {
-  const words = norm(e.target.value).split(' ').filter(Boolean);
+  const words = e.target.value.toLowerCase().replace(/[^0-9a-zа-яіїєґ']+/g, ' ').trim().split(' ').filter(Boolean);
   const hits = words.length ? B.filter(b => words.every(w => b.key.includes(w))).slice(0, 30) : [];
-  $('results').innerHTML = hits.map((b, i) => `<div data-i="${B.indexOf(b)}">${esc(b.street)}, ${esc(b.house)} — <b>${b.apts ?? '—'}</b></div>`).join('');
+  $('results').innerHTML = hits.map(b => `<div data-i="${b.i}"><span>${esc(b.street)}, ${esc(b.house)}</span><b class="num">${b.apts ?? '—'}</b></div>`).join('')
+    || (words.length ? '<div class="hint">Не знайдено</div>' : '');
 });
 $('results').addEventListener('click', e => {
   const d = e.target.closest('[data-i]'); if (!d) return;
@@ -96,6 +282,8 @@ $('results').addEventListener('click', e => {
   if (!layer.hasLayer(b.marker)) layer.addLayer(b.marker);
   map.setView([b.lat, b.lon], 17); b.marker.openPopup();
 });
+
+renderChips(); render();
 </script>
 </body>
 </html>
