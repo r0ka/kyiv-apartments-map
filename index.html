@@ -78,7 +78,7 @@
     <summary>Новобудови (ЛУН)</summary>
     <label><input id="showLun" type="checkbox" checked> показувати ЖК</label>
     <div class="cats" id="lunStatus"></div>
-    <div class="hint">Здані ЖК можуть уже бути серед будинків municipal.kiev.ua, тому в радіусі їх квартири показано окремо, а не додано до загальної суми.</div>
+    <div class="hint">Квартири зданих ЖК додаються до суми в радіусі, крім тих, що вже є серед будинків municipal.kiev.ua (збіг адреси або будинок у межах 30 м). ЖК, що будуються, показано окремо як прогноз.</div>
   </details>
 
   <details id="secStores" open>
@@ -104,7 +104,7 @@
 </div>
 <script>
 const B = (window.BUILDINGS || []).map(([lat,lon,street,house,org,apts,date,m], i) => ({i,lat,lon,street,house,org,apts,date,m}));
-const LUN = (window.LUN || []).map(([lat,lon,name,addr,apts,cls,st,date,dev,url,houses], i) => ({i,lat,lon,name,addr,apts,cls,st,date,dev,url,houses}));
+const LUN = (window.LUN || []).map(([lat,lon,name,addr,apts,cls,st,date,dev,url,houses,dup], i) => ({i,lat,lon,name,addr,apts,cls,st,date,dev,url,houses,dup:!!dup}));
 const LUN_ST = { built:['#00897b','здано'], building:['#fb8c00','будується'], frozen:['#757575','заморожено'], other:['#9575cd','інше'] };
 const S = (window.STORES || []).map(([lat,lon,name,brand,cat], i) => ({i,lat,lon,name,brand,cat}));
 const $ = id => document.getElementById(id);
@@ -180,6 +180,7 @@ const lPopup = c => `<div><b>${esc(c.name)}</b> <span style="color:${LUN_ST[c.st
   <div style="color:#888">${esc(c.addr)}</div>
   <div><b class="n">${c.apts == null ? '—' : fmt(c.apts)}</b> квартир${c.houses ? ` · ${esc(c.houses)} буд.` : ''}</div>
   <div style="color:#888">${[c.cls, c.date && 'здача ' + c.date, c.dev].filter(Boolean).map(esc).join(' · ')}</div>
+  ${c.dup ? '<div style="color:#888">ймовірно, вже є серед будинків municipal.kiev.ua — не додається вдруге</div>' : ''}
   <div class="row"><button data-act="radius" data-ll="${c.lat},${c.lon}">◎ Радіус звідси</button>
   <a href="https://lun.ua${esc(c.url)}" target="_blank" rel="noopener">на ЛУН ↗</a></div>`;
 LUN.forEach(c => { c.marker = L.circleMarker([c.lat, c.lon], { radius:6 }).bindPopup(() => lPopup(c)); });
@@ -228,21 +229,22 @@ function radiusStats(inB, inS, inL) {
   for (const s of inS) { const k = s.brand || '(без мережі)'; byBrand.set(k, (byBrand.get(k) || 0) + 1); }
   const brands = [...byBrand].sort((a, b) => b[1] - a[1]);
   const hlN = inS.filter(s => hl.includes(s.brand)).length;
+  const sumA = list => list.reduce((t, c) => t + (c.apts || 0), 0);
+  const lunBuilt = inL.filter(c => c.st === 'built'), lunAdd = lunBuilt.filter(c => !c.dup), lunDup = lunBuilt.filter(c => c.dup);
+  const lunBuilding = inL.filter(c => c.st === 'building');
+  const total = apts + sumA(lunAdd), future = total + sumA(lunBuilding);
+  const per = n => inS.length ? fmt(Math.round(n / inS.length)) : '—';
   $('rstats').innerHTML = `
     <div class="kpi">
-      <div><b>${fmt(inB.length)}</b><span>будинків (з даними ${fmt(withData.length)})</span></div>
-      <div><b>${fmt(apts)}</b><span>квартир</span></div>
+      <div><b>${fmt(total)}</b><span>квартир разом: будинки ${fmt(apts)}${LUN.length ? ` + ЖК ${fmt(sumA(lunAdd))}` : ''}</span></div>
       <div><b>${fmt(inS.length)}</b><span>магазинів-конкурентів${hl.length ? ` (підсвічених ${fmt(hlN)})` : ''}</span></div>
-      <div><b>${inS.length ? fmt(Math.round(apts / inS.length)) : '—'}</b><span>квартир на 1 магазин</span></div>
+      <div style="border-color:var(--accent)"><b>${per(total)}</b><span>квартир на 1 магазин</span></div>
+      <div style="border-color:${LUN_ST.building[0]}"><b>${per(future)}</b><span>на 1 магазин після здачі ЖК (+${fmt(sumA(lunBuilding))} кв. у ${fmt(lunBuilding.length)} ЖК)</span></div>
       <div><b>${nearest == null ? '—' : fmt(Math.round(nearest)) + ' м'}</b><span>до найближчого магазину</span></div>
-      <div><b>${withData.length ? fmt(Math.round(apts / withData.length)) : '—'}</b><span>квартир на будинок</span></div>
-      ${LUN.length ? (() => { const sumSt = k => inL.filter(c => c.st === k).reduce((s, c) => s + (c.apts || 0), 0);
-        const nb = inL.filter(c => c.st === 'built').length, nu = inL.filter(c => c.st !== 'built').length;
-        return `<div style="border-color:${LUN_ST.built[0]}"><b>${fmt(sumSt('built'))}</b><span>квартир у зданих ЖК (${fmt(nb)})</span></div>
-        <div style="border-color:${LUN_ST.building[0]}"><b>${fmt(inL.filter(c => c.st !== 'built').reduce((s, c) => s + (c.apts || 0), 0))}</b><span>квартир у ЖК, що будуються (${fmt(nu)})</span></div>`; })() : ''}
+      <div><b>${fmt(inB.length)}</b><span>будинків · ${fmt(lunBuilt.length)} зданих ЖК${lunDup.length ? ` (${fmt(lunDup.length)} вже серед будинків)` : ''}</span></div>
     </div>
     ${inL.length ? `<h3>Новобудови в радіусі</h3><div class="list">${[...inL].sort((a, b) => (b.apts || 0) - (a.apts || 0)).map(c =>
-      `<div data-lun="${c.i}" style="cursor:pointer"><span><i class="dot" style="background:${LUN_ST[c.st][0]}"></i>${esc(c.name)}</span><span class="num">${c.apts == null ? '—' : fmt(c.apts)}</span></div>`).join('')}</div>` : ''}
+      `<div data-lun="${c.i}" style="cursor:pointer" title="${c.dup ? 'вже враховано серед будинків' : ''}"><span><i class="dot" style="background:${LUN_ST[c.st][0]}"></i>${esc(c.name)}${c.dup ? ' <span class="sub">(вже враховано)</span>' : ''}</span><span class="num">${c.apts == null ? '—' : fmt(c.apts)}</span></div>`).join('')}</div>` : ''}
     ${inS.length ? `<h3>Магазини в радіусі (клацніть мережу, щоб підсвітити)</h3>
     <div class="list" id="rbrands">${brands.map(([b, n]) => `<div ${b !== '(без мережі)' ? `data-brand="${esc(b)}"` : ''}>
       <span>${hl.includes(b) ? `<i class="sq" style="background:${hlColor(b)}"></i>` : ''}${esc(b)}</span><span class="num">${fmt(n)}</span></div>`).join('')}</div>` : ''}
