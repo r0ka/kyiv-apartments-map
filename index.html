@@ -8,6 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="map_data.js"></script>
 <script src="stores_data.js"></script>
+<script src="lun_data.js"></script>
 <style>
   :root { --bg:#fff; --fg:#1d1d1f; --muted:#6e6e73; --line:#d9d9de; --panel:rgba(255,255,255,.97); --accent:#1a73e8; --hover:rgba(127,127,127,.14); }
   @media (prefers-color-scheme: dark) { :root { --bg:#1c1c1e; --fg:#f2f2f7; --muted:#a1a1a6; --line:#3a3a3c; --panel:rgba(28,28,30,.96); --accent:#5b9dff; } }
@@ -57,7 +58,7 @@
 <div id="map"></div>
 <div class="panel">
   <h1>Квартири в будинках Києва</h1>
-  <div class="sub">Квартири: municipal.kiev.ua · магазини та координати: © OpenStreetMap</div>
+  <div class="sub">Квартири: municipal.kiev.ua · новобудови: lun.ua · магазини та координати: © OpenStreetMap</div>
   <input id="q" type="search" placeholder="Пошук адреси, напр. Панча 11А" autocomplete="off">
   <div id="results" class="list"></div>
 
@@ -71,6 +72,13 @@
     <label>Радіус: <b id="rv">500</b> м</label>
     <input id="r" type="range" min="100" max="5000" step="50" value="500">
     <div id="rstats"></div>
+  </details>
+
+  <details id="secLun" open>
+    <summary>Новобудови (ЛУН)</summary>
+    <label><input id="showLun" type="checkbox" checked> показувати ЖК</label>
+    <div class="cats" id="lunStatus"></div>
+    <div class="hint">Здані ЖК можуть уже бути серед будинків municipal.kiev.ua, тому в радіусі їх квартири показано окремо, а не додано до загальної суми.</div>
   </details>
 
   <details id="secStores" open>
@@ -96,6 +104,8 @@
 </div>
 <script>
 const B = (window.BUILDINGS || []).map(([lat,lon,street,house,org,apts,date,m], i) => ({i,lat,lon,street,house,org,apts,date,m}));
+const LUN = (window.LUN || []).map(([lat,lon,name,addr,apts,cls,st,date,dev,url,houses], i) => ({i,lat,lon,name,addr,apts,cls,st,date,dev,url,houses}));
+const LUN_ST = { built:['#00897b','здано'], building:['#fb8c00','будується'], frozen:['#757575','заморожено'], other:['#9575cd','інше'] };
 const S = (window.STORES || []).map(([lat,lon,name,brand,cat], i) => ({i,lat,lon,name,brand,cat}));
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -119,11 +129,16 @@ const HL_COLORS = ['#d81b60','#1e88e5','#f4511e','#00897b','#8e24aa','#6d4c41','
 const CATS = [...S.reduce((m, s) => m.set(s.cat, (m.get(s.cat) || 0) + 1), new Map())].sort((a, b) => b[1] - a[1]);
 const DEFAULT_CATS = ['Супермаркет','Продукти / мінімаркет','Гіпермаркет / універмаг','Ринок'];
 let catsOn = new Set(store.get('kam-cats', DEFAULT_CATS));
+let lunOn = new Set(store.get('kam-lun', ['built','building','frozen','other']));
 let hl = store.get('kam-brands', []);
 const BRANDS = [...S.reduce((m, s) => s.brand ? m.set(s.brand, (m.get(s.brand) || 0) + 1) : m, new Map())].sort((a, b) => b[1] - a[1]);
 hl = hl.filter(b => BRANDS.some(([x]) => x === b));
 const hlColor = b => HL_COLORS[hl.indexOf(b) % HL_COLORS.length];
 $('cats').innerHTML = CATS.map(([c, n]) => `<label><input type="checkbox" data-cat="${esc(c)}" ${catsOn.has(c) ? 'checked' : ''}> ${esc(c)} <span class="num">${fmt(n)}</span></label>`).join('');
+$('lunStatus').innerHTML = Object.entries(LUN_ST).map(([k, [c, l]]) => { const n = LUN.filter(x => x.st === k).length;
+  return n ? `<label><input type="checkbox" data-st="${k}" ${lunOn.has(k) ? 'checked' : ''}><i class="dot" style="background:#fff;border:3px solid ${c};box-sizing:border-box"></i>${l} <span class="num">${fmt(n)}</span></label>` : ''; }).join('');
+$('lunStatus').addEventListener('change', e => { const k = e.target.dataset.st; if (!k) return;
+  e.target.checked ? lunOn.add(k) : lunOn.delete(k); store.set('kam-lun', [...lunOn]); render(); });
 $('cats').addEventListener('change', e => {
   const c = e.target.dataset.cat; if (!c) return;
   e.target.checked ? catsOn.add(c) : catsOn.delete(c); store.set('kam-cats', [...catsOn]); render();
@@ -147,7 +162,7 @@ $('bresults').onclick = e => { const d = e.target.closest('[data-brand]'); if (d
 // ---------- map ----------
 const map = L.map('map', { preferCanvas:true }).setView([50.45, 30.52], 11);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap contributors' }).addTo(map);
-const bLayer = L.layerGroup().addTo(map), sLayer = L.layerGroup().addTo(map);
+const bLayer = L.layerGroup().addTo(map), lLayer = L.layerGroup().addTo(map), sLayer = L.layerGroup().addTo(map);
 const MATCH = { e:'точна адреса', b:'приблизно (основний номер)', s:'дуже приблизно (центр вулиці)' };
 const bPopup = b => `<div>${esc(b.street)}, ${esc(b.house)}</div>
   <div><b class="n">${b.apts ?? '—'}</b> квартир</div>
@@ -161,6 +176,13 @@ B.forEach(b => {
   b.marker = L.circleMarker([b.lat, b.lon], { radius:3 }).bindPopup(() => bPopup(b));
   b.key = (b.street + ' ' + b.house).toLowerCase().replace(/[^0-9a-zа-яіїєґ']+/g, ' ');
 });
+const lPopup = c => `<div><b>${esc(c.name)}</b> <span style="color:${LUN_ST[c.st][0]}">● ${LUN_ST[c.st][1]}</span></div>
+  <div style="color:#888">${esc(c.addr)}</div>
+  <div><b class="n">${c.apts == null ? '—' : fmt(c.apts)}</b> квартир${c.houses ? ` · ${esc(c.houses)} буд.` : ''}</div>
+  <div style="color:#888">${[c.cls, c.date && 'здача ' + c.date, c.dev].filter(Boolean).map(esc).join(' · ')}</div>
+  <div class="row"><button data-act="radius" data-ll="${c.lat},${c.lon}">◎ Радіус звідси</button>
+  <a href="https://lun.ua${esc(c.url)}" target="_blank" rel="noopener">на ЛУН ↗</a></div>`;
+LUN.forEach(c => { c.marker = L.circleMarker([c.lat, c.lon], { radius:6 }).bindPopup(() => lPopup(c)); });
 S.forEach(s => { s.marker = L.circleMarker([s.lat, s.lon], { radius:4 }).bindPopup(() => sPopup(s)); });
 map.on('popupopen', e => e.popup.getElement().querySelectorAll('button[data-act]').forEach(btn => btn.onclick = () => {
   if (btn.dataset.act === 'radius') { map.closePopup(); map.stop(); setTimeout(() => setCenter(btn.dataset.ll.split(',').map(Number)), 50); }
@@ -197,7 +219,7 @@ $('clearR').onclick = clearCenter;
 map.on('click', e => { if (picking) setCenter(e.latlng); });
 $('r').addEventListener('input', () => { $('rv').textContent = fmt(+$('r').value); if (circle) circle.setRadius(+$('r').value); render(); });
 
-function radiusStats(inB, inS) {
+function radiusStats(inB, inS, inL) {
   if (!center) { $('rstats').innerHTML = ''; return; }
   const withData = inB.filter(b => b.apts != null);
   const apts = withData.reduce((s, b) => s + b.apts, 0);
@@ -214,11 +236,20 @@ function radiusStats(inB, inS) {
       <div><b>${inS.length ? fmt(Math.round(apts / inS.length)) : '—'}</b><span>квартир на 1 магазин</span></div>
       <div><b>${nearest == null ? '—' : fmt(Math.round(nearest)) + ' м'}</b><span>до найближчого магазину</span></div>
       <div><b>${withData.length ? fmt(Math.round(apts / withData.length)) : '—'}</b><span>квартир на будинок</span></div>
+      ${LUN.length ? (() => { const sumSt = k => inL.filter(c => c.st === k).reduce((s, c) => s + (c.apts || 0), 0);
+        const nb = inL.filter(c => c.st === 'built').length, nu = inL.filter(c => c.st !== 'built').length;
+        return `<div style="border-color:${LUN_ST.built[0]}"><b>${fmt(sumSt('built'))}</b><span>квартир у зданих ЖК (${fmt(nb)})</span></div>
+        <div style="border-color:${LUN_ST.building[0]}"><b>${fmt(inL.filter(c => c.st !== 'built').reduce((s, c) => s + (c.apts || 0), 0))}</b><span>квартир у ЖК, що будуються (${fmt(nu)})</span></div>`; })() : ''}
     </div>
+    ${inL.length ? `<h3>Новобудови в радіусі</h3><div class="list">${[...inL].sort((a, b) => (b.apts || 0) - (a.apts || 0)).map(c =>
+      `<div data-lun="${c.i}" style="cursor:pointer"><span><i class="dot" style="background:${LUN_ST[c.st][0]}"></i>${esc(c.name)}</span><span class="num">${c.apts == null ? '—' : fmt(c.apts)}</span></div>`).join('')}</div>` : ''}
     ${inS.length ? `<h3>Магазини в радіусі (клацніть мережу, щоб підсвітити)</h3>
     <div class="list" id="rbrands">${brands.map(([b, n]) => `<div ${b !== '(без мережі)' ? `data-brand="${esc(b)}"` : ''}>
       <span>${hl.includes(b) ? `<i class="sq" style="background:${hlColor(b)}"></i>` : ''}${esc(b)}</span><span class="num">${fmt(n)}</span></div>`).join('')}</div>` : ''}
-    <div class="row"><button id="csvB">⬇ CSV будинків</button><button id="csvS">⬇ CSV магазинів</button></div>`;
+    <div class="row"><button id="csvB">⬇ CSV будинків</button><button id="csvS">⬇ CSV магазинів</button>${inL.length ? '<button id="csvL">⬇ CSV ЖК</button>' : ''}</div>`;
+  $('rstats').querySelectorAll('[data-lun]').forEach(d => d.onclick = () => { const c = LUN[+d.dataset.lun]; map.setView([c.lat, c.lon], Math.max(map.getZoom(), 16)); c.marker.openPopup(); });
+  if ($('csvL')) $('csvL').onclick = () => downloadCsv(`zhk_${$('r').value}m.csv`, [['ЖК','адреса','квартир','статус','клас','здача','забудовник','відстань_м','lat','lon','lun']]
+      .concat([...inL].sort((a, b) => a.d - b.d).map(c => [c.name, c.addr, c.apts ?? '', LUN_ST[c.st][1], c.cls, c.date, c.dev, Math.round(c.d), c.lat, c.lon, 'https://lun.ua' + c.url])));
   $('rbrands')?.addEventListener('click', e => { const d = e.target.closest('[data-brand]'); if (d) toggleBrand(d.dataset.brand, !hl.includes(d.dataset.brand)); });
   const R = $('r').value;
   $('csvB').onclick = () => downloadCsv(`budynky_${R}m.csv`, [['вулиця','будинок','організація','квартир','відстань_м','lat','lon']]
@@ -232,7 +263,7 @@ function render() {
   const min = +$('min').value, max = +$('max').value, approx = $('approx').checked, nodata = $('nodata').checked;
   $('minv').textContent = min; $('maxv').textContent = max >= 1000 ? 'будь-яка' : max;
   const R = +$('r').value, faded = !!center;
-  bLayer.clearLayers(); sLayer.clearLayers();
+  bLayer.clearLayers(); lLayer.clearLayers(); sLayer.clearLayers();
   let n = 0, sum = 0; const inB = [], inS = [];
   for (const b of B) {
     const ok = (b.apts == null ? nodata && min === 0 : b.apts >= min && (max >= 1000 || b.apts <= max)) && (approx || b.m === 'e');
@@ -243,6 +274,15 @@ function render() {
     b.marker.setStyle({ color:'#0004', weight:1, fillColor:binColor(b.apts),
       fillOpacity: faded && !inR ? .15 : (b.m === 'e' ? .8 : .4), dashArray: b.m === 'e' ? null : '2 2' });
     bLayer.addLayer(b.marker); n++; sum += b.apts || 0;
+  }
+  const inL = []; let nl = 0;
+  if ($('showLun').checked) for (const c of LUN) {
+    if (!lunOn.has(c.st)) continue;
+    c.d = center ? dist(center, [c.lat, c.lon]) : 0;
+    const inR = center && c.d <= R; if (inR) inL.push(c);
+    c.marker.setRadius(c.apts ? Math.min(5 + Math.sqrt(c.apts) / 4, 16) : 6);
+    c.marker.setStyle({ color: LUN_ST[c.st][0], weight: 4, fillColor: '#fff', fillOpacity: faded && !inR ? .3 : .9, opacity: faded && !inR ? .35 : 1 });
+    lLayer.addLayer(c.marker); nl++;
   }
   let ns = 0;
   if ($('showStores').checked) for (const s of S) {
@@ -257,13 +297,14 @@ function render() {
     sLayer.addLayer(s.marker); ns++;
   }
   S.forEach(s => hl.includes(s.brand) && sLayer.hasLayer(s.marker) && s.marker.bringToFront());
-  $('stats').textContent = `${fmt(n)} будинків · ${fmt(sum)} квартир · ${fmt(ns)} магазинів на мапі`;
+  $('stats').textContent = `${fmt(n)} будинків · ${fmt(sum)} квартир · ${fmt(nl)} ЖК · ${fmt(ns)} магазинів на мапі`;
   $('legend').innerHTML = BINS.map(([,c,l]) => `<span><i class="dot" style="background:${c}"></i>${l}</span>`).join('')
+    + Object.values(LUN_ST).slice(0, 3).map(([c, l]) => `<span><i class="dot" style="background:#fff;border:3px solid ${c};box-sizing:border-box"></i>ЖК ${l}</span>`).join('')
     + `<span><i class="dot" style="background:${STORE_COLOR};outline:2px solid #fff"></i>магазин</span>`
     + hl.map(b => `<span><i class="dot" style="background:${hlColor(b)};outline:2px solid #fff"></i>${esc(b)}</span>`).join('');
-  radiusStats(inB, inS);
+  radiusStats(inB, inS, inL);
 }
-['min','max','approx','nodata','showStores','onlyHl'].forEach(id => $(id).addEventListener('input', render));
+['min','max','approx','nodata','showStores','onlyHl','showLun'].forEach(id => $(id).addEventListener('input', render));
 
 // ---------- address search ----------
 $('q').addEventListener('input', e => {
