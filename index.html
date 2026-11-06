@@ -9,6 +9,7 @@
 <script src="map_data.js"></script>
 <script src="stores_data.js"></script>
 <script src="lun_data.js"></script>
+<script src="spots_data.js"></script>
 <style>
   :root { --bg:#fff; --fg:#1d1d1f; --muted:#6e6e73; --line:#d9d9de; --panel:rgba(255,255,255,.97); --accent:#1a73e8; --hover:rgba(127,127,127,.14); }
   @media (prefers-color-scheme: dark) { :root { --bg:#1c1c1e; --fg:#f2f2f7; --muted:#a1a1a6; --line:#3a3a3c; --panel:rgba(28,28,30,.96); --accent:#5b9dff; } }
@@ -24,8 +25,8 @@
   input[type=search] { width:100%; box-sizing:border-box; padding:7px 9px; border:1px solid var(--line); border-radius:7px; background:var(--bg); color:var(--fg); font-size:14px; margin-top:6px; }
   .list { max-height:170px; overflow:auto; margin-top:4px; }
   .list > div { padding:4px 6px; border-radius:5px; display:flex; gap:6px; justify-content:space-between; align-items:center; }
-  .list > div[data-i], .list > div[data-brand] { cursor:pointer; }
-  .list > div[data-i]:hover, .list > div[data-brand]:hover { background:var(--hover); }
+  .list > div[data-i], .list > div[data-brand], .list > div[data-spot] { cursor:pointer; }
+  .list > div[data-i]:hover, .list > div[data-brand]:hover, .list > div[data-spot]:hover { background:var(--hover); }
   .num { font-variant-numeric:tabular-nums; white-space:nowrap; }
   label { display:block; margin-top:8px; font-size:12px; color:var(--muted); }
   .cats label { display:flex; align-items:center; gap:4px; margin-top:3px; }
@@ -51,6 +52,11 @@
   .leaflet-popup-content b.n { font-size:20px; }
   .leaflet-popup-content .row button { font-size:12px; padding:3px 7px; }
   .picking #map { cursor:crosshair; }
+  .spot-pin { background:#111; color:#fff; border:2px solid #ffd600; border-radius:50% 50% 50% 0; transform:rotate(-45deg);
+              width:26px; height:26px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.4); }
+  .spot-pin span { transform:rotate(45deg); font:700 12px/1 -apple-system, system-ui, sans-serif; }
+  .spot-pin.top3 { background:#ffd600; color:#111; border-color:#111; }
+  .spotlist .rk { display:inline-block; min-width:20px; font-weight:700; }
   @media (max-width:600px) { .panel { left:8px; right:8px; top:auto; bottom:8px; width:auto; max-width:none; max-height:55vh; } }
 </style>
 </head>
@@ -61,6 +67,13 @@
   <div class="sub">Квартири: municipal.kiev.ua · новобудови: lun.ua · магазини та координати: © OpenStreetMap</div>
   <input id="q" type="search" placeholder="Пошук адреси, напр. Панча 11А" autocomplete="off">
   <div id="results" class="list"></div>
+
+  <details id="secSpots" open>
+    <summary>Найкращі місця для мінімаркету</summary>
+    <label><input id="showSpots" type="checkbox" checked> показувати на мапі</label>
+    <div class="hint">Бал = квартири в радіусі 500 м ÷ (конкуренти в 500 м + 1). Конкуренти: мінімаркети, супермаркети, гіпермаркети, ринки. Мінімум 1 500 квартир поруч, місця щонайменше за 800 м одне від одного. Клацніть, щоб відкрити радіус.</div>
+    <div class="list spotlist" id="spotlist" style="max-height:220px"></div>
+  </details>
 
   <details id="secRadius" open>
     <summary>Радіус</summary>
@@ -106,6 +119,7 @@
 const B = (window.BUILDINGS || []).map(([lat,lon,street,house,org,apts,date,m], i) => ({i,lat,lon,street,house,org,apts,date,m}));
 const LUN = (window.LUN || []).map(([lat,lon,name,addr,apts,cls,st,date,dev,url,houses], i) => ({i,lat,lon,name,addr,apts,cls,st,date,dev,url,houses}));
 const LUN_ST = { built:['#00897b','здано'], building:['#fb8c00','будується'], frozen:['#757575','заморожено'], other:['#9575cd','інше'] };
+const SPOTS = (window.SPOTS || []).map(([lat,lon,score,apts,stores,nearest,nb,lunBuilt,lunBuilding,near], i) => ({rank:i+1,lat,lon,score,apts,stores,nearest,nb,lunBuilt,lunBuilding,near}));
 const S = (window.STORES || []).map(([lat,lon,name,brand,cat], i) => ({i,lat,lon,name,brand,cat}));
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -184,6 +198,26 @@ const lPopup = c => `<div><b>${esc(c.name)}</b> <span style="color:${LUN_ST[c.st
   <a href="https://lun.ua${esc(c.url)}" target="_blank" rel="noopener">на ЛУН ↗</a></div>`;
 LUN.forEach(c => { c.marker = L.circleMarker([c.lat, c.lon], { radius:6 }).bindPopup(() => lPopup(c)); });
 S.forEach(s => { s.marker = L.circleMarker([s.lat, s.lon], { radius:4 }).bindPopup(() => sPopup(s)); });
+const spotLayer = L.layerGroup();
+const spotPopup = p => `<div><b>№${p.rank} місце для мінімаркету</b></div>
+  <div style="color:#888">біля ${esc(p.near)}</div>
+  <div><b class="n">${fmt(p.apts)}</b> квартир у 500 м · ${fmt(p.nb)} будинків</div>
+  <div>${p.stores ? `${fmt(p.stores)} конкурент(и) у 500 м` : 'жодного конкурента в 500 м'} · найближчий ${fmt(p.nearest)} м</div>
+  <div>бал ${fmt(p.score)} квартир на магазин</div>
+  ${p.lunBuilt || p.lunBuilding ? `<div style="color:#888">ЛУН поруч: здані ЖК ${fmt(p.lunBuilt)} кв., будуються ${fmt(p.lunBuilding)} кв.</div>` : ''}
+  <div class="row"><button data-act="radius" data-ll="${p.lat},${p.lon}">◎ Відкрити радіус 500 м</button></div>`;
+SPOTS.forEach(p => {
+  p.marker = L.marker([p.lat, p.lon], { zIndexOffset:1000, title:`№${p.rank}`,
+    icon: L.divIcon({ className:'', html:`<div class="spot-pin ${p.rank <= 3 ? 'top3' : ''}"><span>${p.rank}</span></div>`, iconSize:[26, 26], iconAnchor:[13, 30], popupAnchor:[0, -28] })
+  }).bindPopup(() => spotPopup(p));
+  spotLayer.addLayer(p.marker);
+});
+const toggleSpots = () => $('showSpots').checked ? spotLayer.addTo(map) : spotLayer.remove();
+$('showSpots').addEventListener('input', toggleSpots); toggleSpots();
+$('spotlist').innerHTML = SPOTS.map(p => `<div data-spot="${p.rank - 1}"><span><span class="rk">${p.rank}.</span>${esc(p.near)}</span>
+  <span class="num" title="квартир у 500 м / конкурентів">${fmt(p.apts)} / ${p.stores}</span></div>`).join('');
+$('spotlist').onclick = e => { const d = e.target.closest('[data-spot]'); if (!d) return;
+  const p = SPOTS[+d.dataset.spot]; $('r').value = 500; $('rv').textContent = '500'; setCenter([p.lat, p.lon]); };
 map.on('popupopen', e => e.popup.getElement().querySelectorAll('button[data-act]').forEach(btn => btn.onclick = () => {
   if (btn.dataset.act === 'radius') { map.closePopup(); map.stop(); setTimeout(() => setCenter(btn.dataset.ll.split(',').map(Number)), 50); }
   if (btn.dataset.act === 'brand') { toggleBrand(btn.dataset.brand, !hl.includes(btn.dataset.brand)); map.closePopup(); }

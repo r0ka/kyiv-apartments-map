@@ -10,6 +10,7 @@ Interactive map of the total number of apartments («Загальна кільк
 - Coordinates: matched against [OpenStreetMap](https://www.openstreetmap.org/copyright) addresses (© OpenStreetMap contributors, ODbL)
 - **Radius:** pick a centre (button, or «Радіус звідси» in a building card), drag it, set 100 m–1 km; shows buildings, apartments, organisations inside and exports them as CSV.
 - **New builds (ЛУН):** ~1,770 apartment complexes in Kyiv and the region from lun.ua (apartments, class, developer, completion date), coloured by status: built / under construction / frozen. Inside the radius their apartments are shown separately, because built complexes may already be in the municipal data.
+- **Best spots for a minimarket:** top 25 locations from `spots.py` — every point of a 100 m grid scored as apartments within 500 m ÷ (competing stores within 500 m + 1); competing = minimarket, supermarket, hypermarket, market; at least 1,500 apartments nearby; spots ≥ 800 m apart. Buildings with >1,500 apartments are treated as source errors (e.g. Харківське шосе 19А = 48,610).
 - **Competitors (food stores):** ~6,100 food shops in Kyiv and nearby towns (Вишневе, Борщагівка, Ірпінь, Бровари, Бориспіль…) from OpenStreetMap (supermarkets, minimarkets, markets, bakeries…). Filter by category, highlight chains (АТБ, Сільпо, Фора…); inside the radius you get store count by chain, apartments per store and distance to the nearest store. CSV export for buildings and stores.
 - **Filters:** apartment count range, approximate locations, buildings without data.
 - Full table: [`kyiv_apartments_geo.csv`](kyiv_apartments_geo.csv). The `match` column is `exact`, `base` (main house number only), `street` (street centre) or empty (not located).
@@ -28,4 +29,5 @@ python3 geocode.py                    # -> kyiv_apartments_geo.csv, map_data.js
 python3 stores.py                     # -> stores_data.js
 python3 lun_export.py                 # ~2 h, resumable -> lun_complexes.csv
 python3 lun_data.py                   # -> lun_data.js
+python3 spots.py                      # -> spots_data.js (rerun after any data refresh)
 ```
