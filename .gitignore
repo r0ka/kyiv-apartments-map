@@ -5,3 +5,4 @@ kyiv_map.html
 .claude/
 __pycache__/
 .DS_Store
+osm_kyiv_food.json

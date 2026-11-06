@@ -5,9 +5,10 @@ Interactive map of the total number of apartments («Загальна кільк
 **Map:** https://r0ka.github.io/kyiv-apartments-map/
 
 - Source: building passports on [municipal.kiev.ua](https://municipal.kiev.ua/kiev/) (exported 2026-11-05)
+- Stores: OpenStreetMap `shop=*` / `amenity=marketplace` (© OpenStreetMap contributors, ODbL)
 - Coordinates: matched against [OpenStreetMap](https://www.openstreetmap.org/copyright) addresses (© OpenStreetMap contributors, ODbL)
 - **Radius:** pick a centre (button, or «Радіус звідси» in a building card), drag it, set 100 m–5 km; shows buildings, apartments, organisations inside and exports them as CSV.
-- **My company / competitors:** search management organisations, mark one as yours and any number as competitors; they are highlighted and their share inside the radius is shown. Saved in your browser only.
+- **Competitors (food stores):** ~3,900 Kyiv food shops from OpenStreetMap (supermarkets, minimarkets, markets, bakeries…). Filter by category, highlight chains (АТБ, Сільпо, Фора…); inside the radius you get store count by chain, apartments per store and distance to the nearest store. CSV export for buildings and stores.
 - **Filters:** apartment count range, approximate locations, buildings without data.
 - Full table: [`kyiv_apartments_geo.csv`](kyiv_apartments_geo.csv). The `match` column is `exact`, `base` (main house number only), `street` (street centre) or empty (not located).
 
@@ -19,4 +20,8 @@ curl -s -A kyiv-apartments-map https://overpass-api.de/api/interpreter \
   --data-urlencode 'data=[out:json][timeout:240];area["name:en"="Kyiv"]["admin_level"="4"]->.a;(nwr["addr:housenumber"]["addr:street"](area.a););out center tags;' \
   -o osm_kyiv_addresses.json
 python3 geocode.py                    # -> kyiv_apartments_geo.csv, map_data.js
+# stores: same Overpass call with
+#   (nwr["shop"~"^(supermarket|convenience|grocery|greengrocer|butcher|bakery|deli|dairy|seafood|frozen_food|food|alcohol|beverages|general|department_store|wholesale)$"](area.a);nwr["amenity"="marketplace"](area.a);)
+#   saved as osm_kyiv_food.json, then:
+python3 stores.py                     # -> stores_data.js
 ```
