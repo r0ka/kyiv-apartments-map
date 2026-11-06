@@ -281,7 +281,7 @@ function render() {
     c.d = center ? dist(center, [c.lat, c.lon]) : 0;
     const inR = center && c.d <= R; if (inR) inL.push(c);
     c.marker.setRadius(c.apts ? Math.min(5 + Math.sqrt(c.apts) / 4, 16) : 6);
-    c.marker.setStyle({ color: LUN_ST[c.st][0], weight: 4, fillColor: '#fff', fillOpacity: faded && !inR ? .3 : .9, opacity: faded && !inR ? .35 : 1 });
+    c.marker.setStyle({ color: LUN_ST[c.st][0], weight: 4, fillColor: binColor(c.apts), fillOpacity: faded && !inR ? .3 : .9, opacity: faded && !inR ? .35 : 1 });   // fill = apartment scale, ring = status
     lLayer.addLayer(c.marker); nl++;
   }
   let ns = 0;
@@ -299,7 +299,7 @@ function render() {
   S.forEach(s => hl.includes(s.brand) && sLayer.hasLayer(s.marker) && s.marker.bringToFront());
   $('stats').textContent = `${fmt(n)} будинків · ${fmt(sum)} квартир · ${fmt(nl)} ЖК · ${fmt(ns)} магазинів на мапі`;
   $('legend').innerHTML = BINS.map(([,c,l]) => `<span><i class="dot" style="background:${c}"></i>${l}</span>`).join('')
-    + Object.values(LUN_ST).slice(0, 3).map(([c, l]) => `<span><i class="dot" style="background:#fff;border:3px solid ${c};box-sizing:border-box"></i>ЖК ${l}</span>`).join('')
+    + Object.values(LUN_ST).slice(0, 3).map(([c, l]) => `<span><i class="dot" style="background:#ffc107;border:3px solid ${c};box-sizing:border-box"></i>ЖК ${l} (кільце)</span>`).join('')
     + `<span><i class="dot" style="background:${STORE_COLOR};outline:2px solid #fff"></i>магазин</span>`
     + hl.map(b => `<span><i class="dot" style="background:${hlColor(b)};outline:2px solid #fff"></i>${esc(b)}</span>`).join('');
   radiusStats(inB, inS, inL);
