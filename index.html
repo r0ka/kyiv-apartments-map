@@ -136,7 +136,7 @@ hl = hl.filter(b => BRANDS.some(([x]) => x === b));
 const hlColor = b => HL_COLORS[hl.indexOf(b) % HL_COLORS.length];
 $('cats').innerHTML = CATS.map(([c, n]) => `<label><input type="checkbox" data-cat="${esc(c)}" ${catsOn.has(c) ? 'checked' : ''}> ${esc(c)} <span class="num">${fmt(n)}</span></label>`).join('');
 $('lunStatus').innerHTML = Object.entries(LUN_ST).map(([k, [c, l]]) => { const n = LUN.filter(x => x.st === k).length;
-  return n ? `<label><input type="checkbox" data-st="${k}" ${lunOn.has(k) ? 'checked' : ''}><i class="dot" style="background:#fff;border:3px solid ${c};box-sizing:border-box"></i>${l} <span class="num">${fmt(n)}</span></label>` : ''; }).join('');
+  return n ? `<label><input type="checkbox" data-st="${k}" ${lunOn.has(k) ? 'checked' : ''}>${l} <span class="num">${fmt(n)}</span></label>` : ''; }).join('');
 $('lunStatus').addEventListener('change', e => { const k = e.target.dataset.st; if (!k) return;
   e.target.checked ? lunOn.add(k) : lunOn.delete(k); store.set('kam-lun', [...lunOn]); render(); });
 $('cats').addEventListener('change', e => {
@@ -280,8 +280,8 @@ function render() {
     if (!lunOn.has(c.st)) continue;
     c.d = center ? dist(center, [c.lat, c.lon]) : 0;
     const inR = center && c.d <= R; if (inR) inL.push(c);
-    c.marker.setRadius(c.apts ? Math.min(5 + Math.sqrt(c.apts) / 4, 16) : 6);
-    c.marker.setStyle({ color: LUN_ST[c.st][0], weight: 4, fillColor: binColor(c.apts), fillOpacity: faded && !inR ? .3 : .9, opacity: faded && !inR ? .35 : 1 });   // fill = apartment scale, ring = status
+    c.marker.setRadius(c.apts ? Math.min(3 + Math.sqrt(c.apts) / 2, 12) : 3);   // same look as municipal buildings
+    c.marker.setStyle({ color:'#0004', weight:1, fillColor:binColor(c.apts), fillOpacity: faded && !inR ? .15 : .8, opacity:1, dashArray:null });
     lLayer.addLayer(c.marker); nl++;
   }
   let ns = 0;
@@ -299,7 +299,6 @@ function render() {
   S.forEach(s => hl.includes(s.brand) && sLayer.hasLayer(s.marker) && s.marker.bringToFront());
   $('stats').textContent = `${fmt(n)} будинків · ${fmt(sum)} квартир · ${fmt(nl)} ЖК · ${fmt(ns)} магазинів на мапі`;
   $('legend').innerHTML = BINS.map(([,c,l]) => `<span><i class="dot" style="background:${c}"></i>${l}</span>`).join('')
-    + Object.values(LUN_ST).slice(0, 3).map(([c, l]) => `<span><i class="dot" style="background:#ffc107;border:3px solid ${c};box-sizing:border-box"></i>ЖК ${l} (кільце)</span>`).join('')
     + `<span><i class="dot" style="background:${STORE_COLOR};outline:2px solid #fff"></i>магазин</span>`
     + hl.map(b => `<span><i class="dot" style="background:${hlColor(b)};outline:2px solid #fff"></i>${esc(b)}</span>`).join('');
   radiusStats(inB, inS, inL);
